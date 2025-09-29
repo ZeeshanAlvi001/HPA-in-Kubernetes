@@ -21,5 +21,3 @@ Kubernetes HPA automatically adjusts the number of pod replicas in a deployment 
 - **HPA** → Scales the deployment between 1 and 10 replicas, based on both CPU and memory usage.
 
 ---
-
-## 📂 Repository Structure
