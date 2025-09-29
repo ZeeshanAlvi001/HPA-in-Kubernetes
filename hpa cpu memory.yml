@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: public-mem-cpu-demo
+
+---
+# 2. Deployment for the memory and CPU-intensive application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-cpu-eater
+  namespace: public-mem-cpu-demo
+  labels:
+    app: memory-cpu-eater
+spec:
+  replicas: 1 # Start with 1 replica
+  selector:
+    matchLabels:
+      app: memory-cpu-eater
+  template:
+    metadata:
+      labels:
+        app: memory-cpu-eater
+    spec:
+      containers:
+      - name: memory-cpu-eater-container
+        # Use a reliable public Python image
+        image: python:3.9-slim
+        # This command allocates 100MB of memory and then spins up
+        # a process to consume CPU, simulating a high load.
+        command: ["python", "-c", "import os, time; import multiprocessing as mp; [mp.Process(target=lambda: time.sleep(999999)).start() for _ in range(mp.cpu_count())]; os.system('sleep infinity')"]
+        resources:
+          # Define both memory and CPU requests and limits
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "200m"
+            memory: "200Mi"
+
+---
+# 3. Horizontal Pod Autoscaler (HPA)
+# This HPA scales the deployment based on both memory and CPU utilization,
+# and includes specific policies for scaling behavior.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mem-cpu-eater-hpa
+  namespace: public-mem-cpu-demo
+spec:
+  scaleTargetRef:
+    # Reference the Deployment to be scaled
+    apiVersion: apps/v1
+    kind: Deployment
+    name: memory-cpu-eater
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+
+  
+  # Metric for memory utilization
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  # Metric for CPU utilization
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+
+
+  # Define the scaling behavior policies
+  behavior:
+    scaleUp:
+      # This policy controls how often and how many pods are scaled up.
+      policies:
+      - type: Pods
+        value: 1 # Scale up by 1 pod
+        periodSeconds: 10 # every 10 seconds
+      selectPolicy: Max # Always use the most aggressive policy if multiple are defined
+    scaleDown:
+      # This policy controls how often and how many pods are scaled down.
+      policies:
+      - type: Pods
+        value: 1 # Scale down by 1 pod
+        periodSeconds: 180 # after 180 seconds of meeting scale-down conditions
+      selectPolicy: Max # Use the most aggressive policy if multiple are defined
